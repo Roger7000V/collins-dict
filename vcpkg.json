@@ -1,0 +1,8 @@
+{
+    "name": "collins-dict",
+    "version": "1.0",
+    "dependencies": [
+        "cpr",
+        "lexbor"
+    ]
+}

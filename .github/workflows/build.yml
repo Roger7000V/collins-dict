@@ -1,0 +1,149 @@
+name: Build
+
+on: workflow_dispatch
+
+env:
+  BUILD_DIR: build
+  NAME: dict
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    env:
+      LIB_DIR: /usr/local/share
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set environment variable
+      run: echo TARGET=$NAME-macos-x86-64 >> $GITHUB_ENV
+
+    - name: Set up vcpkg
+      run: |
+        cd $LIB_DIR/
+        rm -r vcpkg
+        git clone https://github.com/Microsoft/vcpkg.git
+        ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+    - name: Build project
+      run: |
+        cmake -B $BUILD_DIR \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_TOOLCHAIN_FILE=$LIB_DIR/vcpkg/scripts/buildsystems/vcpkg.cmake
+        cmake --build $BUILD_DIR -j $(sysctl -n hw.ncpu)
+
+    - name: Archive
+      run: |
+        cd $BUILD_DIR/
+        zip $TARGET.zip $NAME
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.TARGET }}
+        path: ${{ env.BUILD_DIR }}/${{ env.TARGET }}.zip
+
+  build-windows:
+    runs-on: windows-latest
+
+    env:
+      LIB_DIR: 'C:'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set environment variable
+      run: echo TARGET=$env:NAME-windows-x86-64 >> $env:GITHUB_ENV
+
+    - name: Set up vcpkg
+      run: |
+        cd $env:LIB_DIR/
+        rm -r -fo vcpkg
+        git clone https://github.com/Microsoft/vcpkg.git
+        ./vcpkg/bootstrap-vcpkg.bat -disableMetrics
+
+    - name: Build project
+      run: |
+        cmake -B $env:BUILD_DIR `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_TOOLCHAIN_FILE="$env:LIB_DIR/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+          -DVCPKG_OVERLAY_TRIPLETS=triplets `
+          -DVCPKG_TARGET_TRIPLET=x64-mingw-mixed `
+          -G 'MinGW Makefiles'
+        cmake --build $env:BUILD_DIR -j $env:NUMBER_OF_PROCESSORS
+
+    - name: Archive
+      run: |
+        cd $env:BUILD_DIR/
+        mkdir $env:NAME
+        mv liblexbor.dll,"$env:NAME.exe" $env:NAME/
+        Compress-Archive $env:NAME "$env:TARGET.zip"
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.TARGET }}
+        path: ${{ env.BUILD_DIR }}/${{ env.TARGET }}.zip
+
+  build-ubuntu:
+    runs-on: ubuntu-latest
+
+    env:
+      LIB_DIR: /usr/local/share
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set environment variable
+      run: echo TARGET=$NAME-ubuntu-x86-64 >> $GITHUB_ENV
+
+    - name: Set up vcpkg
+      run: |
+        git clone https://github.com/Microsoft/vcpkg.git
+        ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+        sudo rm -r $LIB_DIR/vcpkg
+        sudo mv vcpkg $LIB_DIR/
+
+    - name: Build project
+      run: |
+        cmake -B $BUILD_DIR \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_TOOLCHAIN_FILE=$LIB_DIR/vcpkg/scripts/buildsystems/vcpkg.cmake
+        cmake --build $BUILD_DIR -j $(nproc)
+
+    - name: Archive
+      run: |
+        cd $BUILD_DIR/
+        zip $TARGET.zip $NAME
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.TARGET }}
+        path: ${{ env.BUILD_DIR }}/${{ env.TARGET }}.zip
+
+  build-alpine:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set environment variable
+      run: echo TARGET=$NAME-alpine-x86 >> $GITHUB_ENV
+
+    - name: Build
+      run: docker run --platform=linux/i386 -v $(pwd):/root/$PROJ_DIR -e BUILD_DIR=$BUILD_DIR -e PROJ_DIR=$PROJ_DIR --rm i386/alpine sh -c /root/$PROJ_DIR/.github/workflows/build-alpine.sh
+      env:
+        PROJ_DIR: project
+
+    - name: Archive
+      run: |
+        cd $BUILD_DIR/
+        sudo zip $TARGET.zip $NAME
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.TARGET }}
+        path: ${{ env.BUILD_DIR }}/${{ env.TARGET }}.zip

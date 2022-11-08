@@ -1,0 +1,13 @@
+{
+    "default-registry": {
+        "kind": "builtin",
+        "baseline": ""
+    },
+    "registries": [
+        {
+            "kind": "filesystem",
+            "path": "registry",
+            "packages": [ "lexbor" ]
+        }
+    ]
+}

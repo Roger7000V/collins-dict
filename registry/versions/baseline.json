@@ -1,0 +1,5 @@
+{
+    "default": {
+        "lexbor": { "baseline": "2.1.0" }
+    }
+}
