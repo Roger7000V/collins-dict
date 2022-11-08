@@ -1,0 +1,9 @@
+{
+    "registries": [
+        {
+            "kind": "filesystem",
+            "path": "registry",
+            "packages": [ "lexbor" ]
+        }
+    ]
+}

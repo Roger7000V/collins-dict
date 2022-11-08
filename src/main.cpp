@@ -1,83 +1,98 @@
+#if defined __APPLE__ || defined __unix__
+#include <sys/ioctl.h>
+#include <unistd.h>
+#elif _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#endif
+#define MAX_COL 77;
+
 #include <cpr/cpr.h>
 #include <lexbor/html/html.h>
 #include <lexbor/dom/dom.h>
 
+#include <iomanip>
 #include <iostream>
+#include <string>
 
-enum access { CLASS, TAG };
+using std::cerr;
+using std::cout, std::endl;
+using std::string;
 
-void check_status(const lxb_status_t &status, const std::string &err_msg)
+enum selection { CLASS, TAG };
+
+void check_status(const lxb_status_t& status, const string& err_msg)
 {
     if (status != LXB_STATUS_OK) {
-        std::cerr << err_msg << std::endl;
+        cerr << err_msg << endl;
         exit(EXIT_FAILURE);
     }
 }
 
-lxb_dom_collection_t * get_collection(lxb_html_document_t *document)
+lxb_dom_collection_t* get_collection(lxb_html_document_t* document)
 {
-    lxb_dom_collection_t *collection = lxb_dom_collection_make(&document->dom_document, 10);
+    lxb_dom_collection_t* collection = lxb_dom_collection_make(&document->dom_document, 10);
     if (collection == nullptr) {
-        std::cerr << "Failed to create collection data!" << std::endl;
+        cerr << "error: Failed to create collection data" << endl;
         exit(EXIT_FAILURE);
     }
     return collection;
 }
 
 // Get the first element
-lxb_dom_element_t * get_element(const access &option, lxb_html_document_t *document, lxb_dom_element_t *parent
-    , const std::string &name)
+lxb_dom_element_t* get_element(const selection& option, lxb_html_document_t* document,
+    lxb_dom_element_t* parent, const string& name)
 {
-    lxb_dom_collection_t *collection = get_collection(document);
+    lxb_dom_collection_t* collection = get_collection(document);
 
     lxb_status_t status;
     switch (option) {
         case CLASS:
             status = lxb_dom_elements_by_class_name(parent, collection
-                , reinterpret_cast<const lxb_char_t *>(name.c_str()), name.size());
+                , reinterpret_cast<const lxb_char_t* >(name.c_str()), name.size());
             break;
         case TAG:
             status = lxb_dom_elements_by_tag_name(parent, collection
-                , reinterpret_cast<const lxb_char_t *>(name.c_str()), name.size());
+                , reinterpret_cast<const lxb_char_t* >(name.c_str()), name.size());
             break;
         default:
-            std::cerr << "Unknown access option!" << std::endl;
+            cerr << "error: Unknown selection" << endl;
             exit(EXIT_FAILURE);
     }
-    check_status(status, "Failed to get data!");
+    check_status(status, "error: Failed to get data");
 
     if (lxb_dom_collection_length(collection) == 0) {
         lxb_dom_collection_destroy(collection, true);
         return nullptr;
     }
-    lxb_dom_element_t *data = lxb_dom_collection_element(collection, 0);
+    lxb_dom_element_t* data = lxb_dom_collection_element(collection, 0);
     lxb_dom_collection_destroy(collection, true);
     return data;
 }
 
-lxb_dom_element_t * get_element_by_class(lxb_html_document_t *document, lxb_dom_element_t *parent
-    , const std::string &name)
+lxb_dom_element_t* get_element_by_class(lxb_html_document_t* document, lxb_dom_element_t* parent,
+    const string& name)
 {
-    return get_element(access{CLASS}, document, parent, name);
+    return get_element(selection{CLASS}, document, parent, name);
 }
 
-lxb_dom_element_t * get_element_by_tag(lxb_html_document_t *document, lxb_dom_element_t *parent
-    , const std::string &name)
+lxb_dom_element_t* get_element_by_tag(lxb_html_document_t* document, lxb_dom_element_t* parent,
+    const string& name)
 {
-    return get_element(access{TAG}, document, parent, name);
+    return get_element(selection{TAG}, document, parent, name);
 }
 
-const lxb_char_t * get_text(const lxb_dom_element_t *element)
+const lxb_char_t* get_text(const lxb_dom_element_t* element)
 {
     return lxb_dom_node_text_content(lxb_dom_interface_node(element), nullptr);
 }
 
-std::string cast_string(const lxb_char_t *str)
+inline string cast_string(const lxb_char_t* str)
 {
-    return std::string{reinterpret_cast<const char *>(str)};
+    return string{reinterpret_cast<const char* >(str)};
 }
 
-std::string & format(std::string &str)
+string& format(string& str)
 {
     unsigned long i = 0;
     while (i < str.length()) {
@@ -94,7 +109,7 @@ std::string & format(std::string &str)
         --j;
     }
     str = str.substr(i, j);
-    std::string res;
+    string res;
     i = 0;
     while (i < str.length()) {
         if (std::isspace(str[i])) {
@@ -111,101 +126,118 @@ std::string & format(std::string &str)
     return str;
 }
 
-void get_synonym(lxb_html_document_t *document, lxb_dom_element_t *data)
+void get_synonym(lxb_html_document_t* document, lxb_dom_element_t* data)
 {
-    lxb_dom_element_t *field = get_element_by_class(document, data, "thes");
+    lxb_dom_element_t* field = get_element_by_class(document, data, "thes");
     if (field != nullptr) {
-        std::cout << "    Synonyms: ";
+        cout << "    Synonyms: ";
 
-        lxb_dom_collection_t *collection = get_collection(document);
+        lxb_dom_collection_t* collection = get_collection(document);
         lxb_status_t status = lxb_dom_elements_by_class_name(field, collection
-            , reinterpret_cast<const lxb_char_t *>("ref"), 3);
-        check_status(status, "Failed to get data");
-        std::cout << get_text(lxb_dom_collection_element(collection, 0));
+            , reinterpret_cast<const lxb_char_t* >("ref"), 3);
+        check_status(status, "error: Failed to get data");
+        cout << get_text(lxb_dom_collection_element(collection, 0));
         for (unsigned int j = 1; j < lxb_dom_collection_length(collection) - 1; ++j) {
-            std::cout << ", " << get_text(lxb_dom_collection_element(collection, j));
+            cout << ", " << get_text(lxb_dom_collection_element(collection, j));
         }
-        std::cout << std::endl;
+        cout << endl;
         lxb_dom_collection_destroy(collection, true);
     }
 }
 
-void print_string(const std::string &text)
+
+unsigned short get_terminal_width()
 {
-    const unsigned max_line_length(75);
-    const std::string line_prefix("    ");
-
-    std::istringstream text_iss(text);
-
-    std::string word;
-    unsigned characters_written = 0;
-
-    std::cout << line_prefix;
-    while (text_iss >> word) {
-        if (word.size() + characters_written > max_line_length) {
-            std::cout << '\n' << line_prefix;
-            characters_written = 0;
-        }
-
-        std::cout << word << ' ';
-        characters_written += word.size() + 1;
-    }
-    std::cout << std::endl;
+#if defined __APPLE__ || defined __unix__
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    return w.ws_col > 3 ? w.ws_col - 3 : MAX_COL;
+#elif _WIN32
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+    auto width = csbi.srWindow.Right - csbi.srWindow.Left - 1;
+    return width > 3 ? width - 3 : MAX_COL;
+#else
+    return MAX_COL;
+#endif
 }
 
-int main(int argc, char *argv[])
+void wrap_line(const string& text, const unsigned int width)
 {
+    const string indent{"   "};
+
+    std::istringstream stream{text};
+    string word;
+    unsigned int written_length{0};
+
+    cout << indent;
+    while (stream >> word) {
+        if (word.size() + written_length > width) {
+            cout << '\n' << indent;
+            written_length = 0;
+        }
+        cout << ' ' << word;
+        written_length += word.size() + 1;
+    }
+    cout << endl;
+}
+
+int main(const int argc, const char* argv[])
+{
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     if (argc != 2) {
-        std::cerr << "Incorrect number of arguments" << std::endl;
-        std::cerr << "Usage: dict <word/phrase>" << std::endl;
+        cerr << "error: Incorrect number of arguments" << endl;
+        cerr << "usage: dict <word/phrase>" << endl;
         return EXIT_FAILURE;
     }
-    std::string lookup{argv[1]};
+    string lookup{argv[1]};
     const cpr::Response r = cpr::Get(cpr::Url{"https://www.collinsdictionary.com/us/search/"},
-                                     cpr::Parameters({{"dictCode", "english"}, {"q", lookup}}),
-                                     cpr::Header{{"User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:10.0)"
-                                                                " Gecko/20100101 Firefox/10.0}"}});
+        cpr::Parameters({{"dictCode", "english"}, {"q", lookup}}),
+        cpr::Header{{"User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:10.0)"
+            " Gecko/20100101 Firefox/10.0}"}});
 
     if (r.status_code != 200) {
-        std::cerr << "Could not connect to website" << std::endl;
+        cerr << "error: Failed to get web content" << endl;
         return 0;
     }
-    std::string text = r.text;
+    string text = r.text;
     lxb_status_t status;
 
-    auto *html = reinterpret_cast<const lxb_char_t *>(text.c_str());
-    lxb_html_document_t *document = lxb_html_document_create();
+    auto* html = reinterpret_cast<const lxb_char_t* >(text.c_str());
+    lxb_html_document_t* document = lxb_html_document_create();
     status = lxb_html_document_parse(document, html, text.length() - 1);
     check_status(status, "Failed to parse webpage");
 
     // Get Collins default dictionary
-    lxb_dom_element_t *data = lxb_dom_interface_element(document->body);
-    lxb_dom_element_t *dict = get_element_by_class(document, data, "cobuild");
+    lxb_dom_element_t* data = lxb_dom_interface_element(document->body);
+    lxb_dom_element_t* dict = get_element_by_class(document, data, "cobuild");
 
     // The word does not exist in dictionary
     if (dict == nullptr) {
         dict = get_element_by_class(document, data, "american");
         if (dict == nullptr) {
-            std::cout << "No word or phrase named \"" << lookup << '"' << std::endl;
+            cout << "No word or phrase named \"" << lookup << '"' << endl;
 
             data = get_element_by_class(document, data, "suggested_words");
             if (data != nullptr) {
-                lxb_dom_collection_t *collection = get_collection(document);
+                lxb_dom_collection_t* collection = get_collection(document);
                 status = lxb_dom_elements_by_tag_name(data, collection
-                    , reinterpret_cast<const lxb_char_t *>("li"), 2);
+                    , reinterpret_cast<const lxb_char_t* >("li"), 2);
                 check_status(status, "Failed to get data");
-                std::cout << "Maybe you mean:" << std::endl;
+                cout << "Maybe you mean:" << endl;
                 // Print in two columns
-                unsigned int size = lxb_dom_collection_length(collection);
+                auto size = static_cast<unsigned int>(lxb_dom_collection_length(collection));
                 unsigned int half = size / 2;
                 for (unsigned int i = 0; i < half; ++i) {
-                    std::cout << std::left << std::setw(45)
+                    cout << std::left << std::setw(45)
                               << get_text(lxb_dom_collection_element(collection, i));
-                    std::cout << get_text(lxb_dom_collection_element(collection, half + i));
-                    std::cout << std::endl;
+                    cout << get_text(lxb_dom_collection_element(collection, half + i));
+                    cout << endl;
                 }
                 if (size % 2 == 1) {
-                    std::cout << get_text(lxb_dom_collection_element(collection, half)) << std::endl;
+                    cout << get_text(lxb_dom_collection_element(collection, half)) << endl;
                 }
                 lxb_dom_collection_destroy(collection, true);
             }
@@ -216,95 +248,97 @@ int main(int argc, char *argv[])
 
     // Get word
     data = get_element_by_tag(document, dict, "h2");
-    std::cout << get_text(data);
+    cout << get_text(data);
 
     // Get pronunciation
     data = get_element_by_class(document, dict, "pron");
     if (data != nullptr) {
-        std::string pron{reinterpret_cast<const char *>(get_text(data))};
+        string pron{reinterpret_cast<const char* >(get_text(data))};
         pron = pron.substr(0, pron.length() - 3);
-        std::cout << " [" << pron << ']';
+        cout << " [" << pron << ']';
     }
-    std::cout << std::endl;
+    cout << endl;
 
     // Get word forms
     data = get_element_by_class(document, dict, "type-infl");
     if (data != nullptr) {
-        std::cout << get_text(data) << std::endl;
+        cout << get_text(data) << endl;
     }
 
     // Get types
-    lxb_dom_collection_t *collection = get_collection(document);
+    lxb_dom_collection_t* collection = get_collection(document);
     status = lxb_dom_elements_by_class_name(lxb_dom_interface_element(dict), collection
-        , reinterpret_cast<const lxb_char_t *>("hom"), 3);
+        , reinterpret_cast<const lxb_char_t* >("hom"), 3);
     check_status(status, "Failed to get data");
     for (unsigned int i = 0; i < lxb_dom_collection_length(collection); ++i) {
         data = lxb_dom_collection_element(collection, i);
 
-        lxb_dom_element_t *field;
+        lxb_dom_element_t* field;
 
         // Get numbering
         field = get_element_by_class(document, data, "sensenum");
         if (field != nullptr) {
-            std::string num = reinterpret_cast<const char *>(get_text(field));
-            std::cout << '\n' << num.substr(0, num.length() - 2);
+            string num = reinterpret_cast<const char* >(get_text(field));
+            cout << '\n' << num.substr(0, num.length() - 2);
         }
 
         // Get grammar group
         field = get_element_by_class(document, data, "gramGrp");
         if (field != nullptr) {
             if (lxb_dom_collection_length(collection) != 1) {
-                std::cout << ' ';
+                cout << ' ';
             }
-            std::string gram_grp = cast_string(get_text(field));
+            string gram_grp = cast_string(get_text(field));
             if (gram_grp[0] == ' ') {
-                std::cout << gram_grp.substr(1, gram_grp.length()) << std::endl;
+                cout << gram_grp.substr(1, gram_grp.length()) << endl;
             } else {
-                std::cout << gram_grp << std::endl;
+                cout << gram_grp << endl;
             }
         }
+
+        const auto w = get_terminal_width();
 
         // Get definition
         field = get_element_by_class(document, data, "def");
         if (field != nullptr) {
-            std::string def = cast_string((get_text(field)));
-            print_string(def);
+            string def = cast_string((get_text(field)));
+            wrap_line(def, w);
         } else {
             field = get_element_by_class(document, data, "xr");
-            std::string def = cast_string((get_text(field)));
-            std::cout << ' ' << format(def) << std::endl;
+            string def = cast_string((get_text(field)));
+            cout << ' ' << format(def) << endl;
         }
 
         // Get example
         field = get_element_by_class(document, data, "quote");
         if (field != nullptr) {
-            std::string example = cast_string((get_text(field)));
-            std::cout << '\n';
-            print_string("-> " + example.substr(1));
+            string example = cast_string((get_text(field)));
+            cout << '\n';
+            wrap_line("-> " + example.substr(1), w);
         }
 
         // Get synonym
         get_synonym(document, data);
 
         // Get derivation
-        lxb_dom_collection_t *drv_collection = get_collection(document);
+        lxb_dom_collection_t* drv_collection = get_collection(document);
         status = lxb_dom_elements_by_class_name(lxb_dom_interface_element(data), drv_collection
-            , reinterpret_cast<const lxb_char_t *>("type-drv"), 8);
+            , reinterpret_cast<const lxb_char_t* >("type-drv"), 8);
         check_status(status, "Failed to get data");
         if (lxb_dom_collection_length(drv_collection) != 0) {
-            std::cout << "\n    Derivations:" << std::endl;
+            cout << "\n    Derivations:" << endl;
         }
         for (unsigned int j = 0; j < lxb_dom_collection_length(drv_collection); ++j) {
             if (j % 2 == 1) {
                 continue;
             }
             field = lxb_dom_collection_element(drv_collection, j);
-            std::string grp = cast_string(get_text(get_element_by_class(document, field, "gramGrp")));
-            std::cout << "    - " << get_text(get_element_by_class(document, field, "orth"))
-                      << " (" << grp.substr(1, grp.length()) << ")" << std::endl;
-            std::string example = cast_string(get_text(get_element_by_class(document, field, "quote")));
-            std::cout << '\n';
-            print_string("-> " + example.substr(1));
+            string grp = cast_string(get_text(get_element_by_class(document, field, "gramGrp")));
+            cout << "    - " << get_text(get_element_by_class(document, field, "orth"))
+                      << " (" << grp.substr(1, grp.length()) << ")" << endl;
+            string example = cast_string(get_text(get_element_by_class(document, field, "quote")));
+            cout << '\n';
+            wrap_line("-> " + example.substr(1), w);
 
             // Get synonym
             get_synonym(document, field);

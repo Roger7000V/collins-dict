@@ -1,0 +1,120 @@
+name: Build
+
+on: workflow_dispatch
+
+env:
+  BUILD_DIR: build
+  NAME: dict
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up vcpkg
+      run: /usr/local/share/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+    - name: Build project
+      run: |
+        cmake -B "$BUILD_DIR" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake
+        cmake --build "$BUILD_DIR"
+
+    - name: Archive
+      run: |
+        cd "$BUILD_DIR"
+        zip "$NAME.zip" "$NAME"
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.NAME }}-macos-x86-64
+        path: ${{ env.BUILD_DIR }}/${{ env.NAME }}.zip
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up vcpkg
+      run: C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+
+    - name: Build project
+      run: |
+        cmake -B "$env:BUILD_DIR" `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_C_COMPILER=C:/ProgramData/chocolatey/bin/gcc.exe `
+          -DCMAKE_CXX_COMPILER=C:/ProgramData/chocolatey/bin/g++.exe `
+          -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+          -DVCPKG_OVERLAY_TRIPLETS=triplets `
+          -DVCPKG_TARGET_TRIPLET=x64-mingw `
+          -G "MinGW Makefiles"
+        cmake --build "$env:BUILD_DIR"
+
+    - name: Archive
+      run: |
+        cd "$env:BUILD_DIR/"
+        mkdir "$env:NAME"
+        cpi liblexbor.dll,"$env:NAME.exe" -Destination "$env:NAME/"
+        Compress-Archive -Path "$env:NAME" "$env:NAME.zip"
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.NAME }}-windows-x86-64
+        path: ${{ env.BUILD_DIR }}/${{ env.NAME }}.zip
+
+  build-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up vcpkg
+      run: /usr/local/share/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+    - name: Build project
+      run: |
+        cmake -B "$BUILD_DIR" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_TOOLCHAIN_FILE=/usr/local/share/vcpkg/scripts/buildsystems/vcpkg.cmake
+        cmake --build "$BUILD_DIR"
+
+    - name: Archive
+      run: |
+        cd "$BUILD_DIR"
+        zip "$NAME.zip" "$NAME"
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.NAME }}-ubuntu-x86-64
+        path: ${{ env.BUILD_DIR }}/${{ env.NAME }}.zip
+
+  build-alpine:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up vcpkg
+      run: sudo mv /usr/local/share/vcpkg .
+
+    - name: Build
+      run: docker run --rm -v "$(pwd)":/root/project i386/alpine:edge sh -c \
+        /root/project/.github/workflows/musl.sh
+
+    - name: Archive
+      run: |
+        cd "$BUILD_DIR"
+        sudo zip "$NAME.zip" "$NAME"
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.NAME }}-alpine-x86
+        path: ${{ env.BUILD_DIR }}/${{ env.NAME }}.zip
